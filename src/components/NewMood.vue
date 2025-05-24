@@ -48,6 +48,7 @@ const moodDescription = ref('');
 const isOverlayVisible = ref(false);
 
 const allMoodImages = computed(() => props.allMoodImagesProp);
+const dayHasMood = ref(false);
 
 function normalizeDate(date) {
   if (!date) return null;
@@ -73,10 +74,12 @@ function loadInitialData() {
     currentSelectedMood.value = defaultMoodImageDetails.value;
     moodDescription.value = '';
   }
+  dayHasMood.value = props.dayHasMoodFunction(props.selectedDateProp);
 }
 
 watch(() => [props.selectedDateProp, props.initialMoodDataProp], () => {
   loadInitialData();
+  dayHasMood.value = props.dayHasMoodFunction(props.selectedDateProp);
 }, { immediate: true });
 
 
@@ -102,7 +105,7 @@ const buttonState = computed(() => {
   if (isFutureDate.value) {
     return { text: '', visible: false, styleClass: '' };
   }
-  if (props.dayHasMoodFunction(props.selectedDateProp)) {
+  if (dayHasMood.value) {
     return { text: 'Editar', visible: true, styleClass: 'edit-button' };
   }
   return { text: 'Publicar', visible: true, styleClass: 'publish-button-style' };
@@ -197,12 +200,13 @@ function fomatDate(date) {
   background-color: #fff;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   width: 100%;
-  max-width: 400px;
+  max-width: 500px;
 }
 
+
 .mood-image {
-  width: 166px;
-  height: 166px;
+  width: 155px;
+  height: 155px;
   cursor: pointer;
   border: 2px solid transparent;
   object-fit: cover;

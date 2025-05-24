@@ -4,9 +4,9 @@
     <div id="journal-container">
       <div class="main-layout">
         <div class="left-column">
-          <CalendarView :mood-data="monthData" :available-moods="definedMoods" @date-selected="handleDateSelected"
-            @prev-month="handlePrevMonth($event.year, $event.month)"
-            @next-month="handleNextMonth($event.year, $event.month)" />
+          <CalendarView :is-loading="isLoading" :mood-data="monthData" :available-moods="definedMoods"
+            @date-selected="handleDateSelected" @prev-month="handleMonthChange($event.year, $event.month)"
+            @next-month="handleMonthChange($event.year, $event.month)" />
         </div>
         <div class="right-column">
           <NewMood :key="newMoodComponentKey" :selected-date-prop="selectedDateForNewMood"
@@ -26,30 +26,81 @@ import CalendarView from './CalendarView.vue';
 import router from '../router/index.js';
 import api from '../services/api.js';
 
-const definedMoods = ref([
-  { id: 'default', src: new URL('@/assets/images/NewMood.png', import.meta.url).href, alt: 'Novo Humor' },
-]);
-
+const definedMoods = ref([]);
 const monthData = ref({});
 const moodDataForSelectedDate = ref(null);
+const newMoodComponentKey = ref(0);
+const selectedDateForNewMood = ref(new Date());
+const isLoading = ref(true);
+
+async function handleMonthChange(year, month) {
+  isLoading.value = true;
+  const data = await fetchMonth(year, month + 1);
+  monthData.value = data;
+  isLoading.value = false;
+}
+
+async function fetchMonth(year, month) {
+  try {
+    const url = `/api/moods/?month=${month}&year=${year}`;
+    const res = await api.get(url);
+    const loadData = {};
+
+    if (res.status === 200) {
+      for (const entry of res.data) {
+        const { entry_date: entryDate, id, mood } = entry;
+        const day = parseInt(entryDate.split('-')[2], 10);
+        loadData[day] = {
+          entryID: id,
+          moodId: mood.id,
+          description: entry.description,
+          day: day,
+        };
+      }
+      return loadData;
+    }
+  } catch (error) {
+    console.error(`Error fetching month data for ${year}-${month}:`, error);
+  }
+  return {};
+}
 
 onBeforeMount(async () => {
   const accessToken = localStorage.getItem('access');
-  const refreshToken = localStorage.getItem('refresh');
-
-  if (!accessToken || !refreshToken) {
+  if (!accessToken) {
     router.push("/");
     return;
   }
 
+  isLoading.value = true;
+
+  await loadDefaultMoods();
+
+  const today = new Date();
+  await handleMonthChange(today.getFullYear(), today.getMonth());
+
+  const day = today.getDate();
+  const todayMood = monthData.value[day];
+  if (todayMood) {
+    moodDataForSelectedDate.value = findMoodEntryForDate(today);
+  } else {
+    moodDataForSelectedDate.value = null;
+  }
+
+  isLoading.value = false;
+});
+
+watch(selectedDateForNewMood, (newDate) => {
+  moodDataForSelectedDate.value = findMoodEntryForDate(newDate);
+});
+
+async function loadDefaultMoods() {
   const moods = await api.get('/api/default-moods/');
   definedMoods.value = [
     { id: 'default', src: new URL('@/assets/images/NewMood.png', import.meta.url).href, alt: 'Novo Humor' },
   ];
-
   if (moods.status === 200) {
     const moodData = moods.data;
-    console.log('Mood data:', moodData);
     for (const mood of moodData) {
       definedMoods.value.push({
         id: mood.id,
@@ -60,110 +111,16 @@ onBeforeMount(async () => {
   } else {
     console.error('Error fetching mood data:', moods.status);
   }
-
-  const month = new Date().getMonth() + 1;
-  const year = new Date().getFullYear();
-
-  await fetchMonth(year, month);
-  const today = new Date();
-  const day = today.getDate();
-  const todayMood = monthData.value[day];
-  moodDataForSelectedDate.value = todayMood
-    ? {
-      entryID: todayMood.entryID,
-      moodId: todayMood.moodId,
-      src: definedMoods.value.find(m => m.id === todayMood.moodId)?.src,
-      alt: definedMoods.value.find(m => m.id === todayMood.moodId)?.alt,
-      description: todayMood.description || ''
-    }
-    : null;
-});
-
-const selectedDateForNewMood = ref(new Date());
-const newMoodComponentKey = ref(0);
-
-function findMoodEntryForDate(date) {
-  if (!date) return null;
-  const day = date.getDate();
-  return monthData.value[day]
-    ? {
-      entryID: monthData.value[day].entryID,
-      moodId: monthData.value[day].moodId,
-      src: definedMoods.value.find(m => m.id === monthData.value[day].moodId)?.src,
-      alt: definedMoods.value.find(m => m.id === monthData.value[day].moodId)?.alt,
-      description: monthData.value[day].description || ''
-    }
-    : null;
 }
-
-watch(selectedDateForNewMood, (newDate) => {
-  moodDataForSelectedDate.value = findMoodEntryForDate(newDate);
-});
-
 
 function handleDateSelected(payload) {
   selectedDateForNewMood.value = payload.date;
-  if (payload.moodEntry) {
-    moodDataForSelectedDate.value = {
-      entryID: payload.moodEntry.entryID,
-      moodId: payload.moodEntry.moodId,
-      src: payload.moodEntry.image,
-      alt: payload.moodEntry.alt,
-      description: payload.moodEntry.description || ''
-    };
-  } else {
-    moodDataForSelectedDate.value = null;
-  }
+  moodDataForSelectedDate.value = findMoodEntryForDate(payload.date);
   newMoodComponentKey.value++;
-  console.log('Selected date:', selectedDateForNewMood.value);
-  console.log('Mood data for selected date:', moodDataForSelectedDate.value);
-}
-
-function handleSair() {
-  localStorage.removeItem("access");
-  localStorage.removeItem("refresh");
-  router.push("/");
-}
-
-async function fetchMonth(year, month) {
-
-  const url = `/api/moods/?month=${month}&year=${year}`;
-
-  const res = await api.get(url);
-  console.log(res.data)
-
-  const loadData = {}
-
-  if (res.status === 200) {
-    for (const entry of res.data) {
-      const { entry_date: entryDate, id, mood } = entry;
-      const moodId = mood.id;
-      const description = entry.description;
-      const parts = entryDate.split('-');
-      const day = parts[2];
-      loadData[day] = {
-        entryID: id,
-        moodId: moodId,
-        description: description,
-        day: day,
-      };
-    }
-    monthData.value = { ...loadData };
-  } else {
-    console.error('Error fetching month data:', res.status);
-  }
-}
-
-function handlePrevMonth(year, month) {
-  fetchMonth(year, month + 2);
-}
-
-function handleNextMonth(year, month) {
-  fetchMonth(year, month);
 }
 
 function handleMoodChange(newmood) {
-  const date = newmood.date
+  const date = newmood.date;
   const day = date.getDate();
   monthData.value[day] = {
     entryID: newmood.entryId,
@@ -173,14 +130,33 @@ function handleMoodChange(newmood) {
   };
 }
 
+function findMoodEntryForDate(date) {
+  if (!date) return null;
+  const day = date.getDate();
+  if (monthData.value && monthData.value[day]) {
+    const dayData = monthData.value[day];
+    return {
+      entryID: dayData.entryID,
+      moodId: dayData.moodId,
+      src: definedMoods.value.find(m => m.id === dayData.moodId)?.src,
+      alt: definedMoods.value.find(m => m.id === dayData.moodId)?.alt,
+      description: dayData.description || ''
+    };
+  }
+  return null;
+}
+
 function hasMoodEntryForDate(date) {
   const day = date.getDate();
   return monthData.value && monthData.value[day];
 }
 
-
+function handleSair() {
+  localStorage.removeItem("access");
+  localStorage.removeItem("refresh");
+  router.push("/");
+}
 </script>
-
 <style scoped>
 #journal-wrapper {
   min-height: 100vh;
@@ -193,7 +169,7 @@ function hasMoodEntryForDate(date) {
 }
 
 .sair-button {
-  position: fixed;
+  position: absolute;
   bottom: 20px;
   right: 20px;
   padding: 10px 20px;
@@ -215,14 +191,14 @@ function hasMoodEntryForDate(date) {
 
 #journal-container {
   width: 100%;
-  max-width: 1200px;
+  max-width: 1100px;
   margin-left: auto;
   margin-right: auto;
 }
 
 .main-layout {
   display: flex;
-  gap: 25px;
+  gap: 125px;
   align-items: flex-start;
   background-color: #ffffff;
   padding: 25px;
@@ -230,14 +206,15 @@ function hasMoodEntryForDate(date) {
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
 }
 
-.left-column {
-  flex: 1;
-}
-
+.left-column,
 .right-column {
   flex: 1;
   display: flex;
   justify-content: center;
+}
+
+.right-column {
+  max-width: 40%;
 }
 
 @media (max-width: 900px) {
@@ -250,6 +227,7 @@ function hasMoodEntryForDate(date) {
     flex-direction: column;
     align-items: center;
     padding: 20px;
+    gap: 20px;
   }
 
   .left-column,

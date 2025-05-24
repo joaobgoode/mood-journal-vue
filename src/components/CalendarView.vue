@@ -1,19 +1,24 @@
 <template>
-  <div class="calendar-container">
-    <div class="calendar-header">
-      <button @click="previousMonth" class="nav-button">&lt;</button>
-      <h2>{{ currentMonthName }} {{ currentYear }}</h2>
-      <button @click="nextMonth" class="nav-button">&gt;</button>
+  <div class="calendar-wrapper">
+    <div v-if="isLoading" class="loading-container">
+      <div class="spinner"></div>
     </div>
-    <div class="calendar-grid">
-      <div v-for="day in daysInMonth" :key="day" class="calendar-day" :class="{
-        'has-mood': getMoodForDay(day)?.image,
-        'is-today': isToday(day)
-      }" @click="handleDayClick(day)">
-        <img v-if="getMoodForDay(day)?.image" :src="getMoodForDay(day)?.image" :alt="getMoodForDay(day)?.alt || 'Mood'"
-          class="mood-icon" />
-        <span v-else class="mood-placeholder"></span>
-        <span class="day-number">{{ day }}</span>
+    <div v-else class="calendar-container">
+      <div class="calendar-header">
+        <button @click="previousMonth" class="nav-button">&lt;</button>
+        <h2>{{ currentMonthName }} {{ currentYear }}</h2>
+        <button @click="nextMonth" class="nav-button">&gt;</button>
+      </div>
+      <div class="calendar-grid">
+        <div v-for="day in daysInMonth" :key="day" class="calendar-day" :class="{
+          'has-mood': getMoodForDay(day)?.image,
+          'is-today': isToday(day)
+        }" @click="handleDayClick(day)">
+          <img v-if="getMoodForDay(day)?.image" :src="getMoodForDay(day)?.image"
+            :alt="getMoodForDay(day)?.alt || 'Mood'" class="mood-icon" />
+          <span v-else class="mood-placeholder"></span>
+          <span class="day-number">{{ day }}</span>
+        </div>
       </div>
     </div>
   </div>
@@ -23,9 +28,13 @@
 import { ref, computed } from 'vue';
 
 const props = defineProps({
+  isLoading: {
+    type: Boolean,
+    default: false
+  },
   moodData: {
     type: Object,
-    required: true,
+    default: () => ({})
   },
   availableMoods: {
     type: Array,
@@ -34,7 +43,6 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['date-selected', 'prev-month', 'next-month']);
-
 const currentDate = ref(new Date());
 const today = new Date();
 
@@ -73,40 +81,68 @@ function handleDayClick(day) {
   const selectedDate = new Date(currentYear.value, currentMonth.value, day);
   const moodDetails = getMoodForDay(day);
   emit('date-selected', { date: selectedDate, moodEntry: moodDetails ? { ...moodDetails, moodId: props.moodData[day]?.moodId } : null });
-  console.log(props)
 }
 
 function previousMonth() {
   currentDate.value = new Date(currentYear.value, currentMonth.value - 1, 1);
   emit('prev-month', {
-    year: currentYear.value,
-    month: currentMonth.value - 1
+    year: currentDate.value.getFullYear(),
+    month: currentDate.value.getMonth()
   });
 }
 
 function nextMonth() {
   currentDate.value = new Date(currentYear.value, currentMonth.value + 1, 1);
   emit('next-month', {
-    year: currentYear.value,
-    month: currentMonth.value + 1
+    year: currentDate.value.getFullYear(),
+    month: currentDate.value.getMonth()
   });
 }
-
-if (props.availableMoods.length === 0) {
-  console.warn("CalendarView: `availableMoods` está vazio. As imagens de humor podem não carregar.");
-}
-
 </script>
 
 <style scoped>
+.calendar-wrapper {
+  width: 100%;
+  max-width: 500px;
+  margin: 0 auto;
+}
+
 .calendar-container {
   padding: 20px;
   border: 1px solid #ddd;
   border-radius: 8px;
   background-color: #f9f9f9;
   width: 100%;
-  max-width: 500px;
-  margin: 0 auto;
+}
+
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 450px;
+  padding: 20px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background-color: #f9f9f9;
+}
+
+.spinner {
+  border: 4px solid rgba(0, 0, 0, 0.1);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border-left-color: purple;
+  animation: spin 1s ease infinite;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .calendar-header {
@@ -158,7 +194,6 @@ if (props.availableMoods.length === 0) {
   cursor: pointer;
   transition: background-color 0.2s;
   box-sizing: border-box;
-  /* Garante que a borda não aumente o tamanho do elemento */
 }
 
 .calendar-day:hover {
