@@ -92,7 +92,7 @@ async function handleLogin() {
     errorMessage.value.push('Usuário e senha são obrigatórios');
     return;
   }
-  const res = await axios.post('http://localhost:8000/api/token/', {
+  const res = await axios.post(import.meta.env.VITE_BASE_URL + '/api/token/', {
     "username": usuarioLogin.value,
     "password": senhaLogin.value
   });
@@ -160,7 +160,7 @@ async function handleRegister() {
     return;
   }
   try {
-    const res = await axios.post('http://localhost:8000/api/register/', {
+    const res = await axios.post(import.meta.env.VITE_BASE_URL + '/api/register/', {
       "username": usuarioRegister.value,
       "password": senhaRegister.value,
       "password2": confirmarSenhaRegister.value,
