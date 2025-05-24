@@ -95,7 +95,12 @@ async function handleLogin() {
   const res = await axios.post(import.meta.env.VITE_BASE_URL + '/api/token/', {
     "username": usuarioLogin.value,
     "password": senhaLogin.value
-  });
+  },
+    {
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
   if (res.status === 200) {
     const accessToken = res.data.access;
     const refreshToken = res.data.refresh;
@@ -160,12 +165,20 @@ async function handleRegister() {
     return;
   }
   try {
-    const res = await axios.post(import.meta.env.VITE_BASE_URL + '/api/register/', {
-      "username": usuarioRegister.value,
-      "password": senhaRegister.value,
-      "password2": confirmarSenhaRegister.value,
-      "email": emailRegister.value
-    });
+    const res = await axios.post(
+      import.meta.env.VITE_BASE_URL + '/api/register/',
+      {
+        username: usuarioRegister.value,
+        password: senhaRegister.value,
+        password2: confirmarSenhaRegister.value,
+        email: emailRegister.value
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+    );
     if (res.status === 201) {
       alert('Usuário registrado com sucesso!');
       toggleLoginRegister();
