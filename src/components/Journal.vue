@@ -28,6 +28,7 @@ import api from '../services/api.js';
 
 const definedMoods = ref([]);
 const monthData = ref({});
+const monthOnCalendar = ref(new Date().getMonth());
 const moodDataForSelectedDate = ref(null);
 const newMoodComponentKey = ref(0);
 const selectedDateForNewMood = ref(new Date());
@@ -36,6 +37,7 @@ const isLoading = ref(true);
 async function handleMonthChange(year, month) {
   isLoading.value = true;
   const data = await fetchMonth(year, month + 1);
+  monthOnCalendar.value = month;
   monthData.value = data;
   isLoading.value = false;
 }
@@ -121,6 +123,10 @@ function handleDateSelected(payload) {
 
 function handleMoodChange(newmood) {
   const date = newmood.date;
+  const month = date.getMonth();
+  if (month !== monthOnCalendar.value) {
+    return;
+  }
   const day = date.getDate();
   monthData.value[day] = {
     entryID: newmood.entryId,
