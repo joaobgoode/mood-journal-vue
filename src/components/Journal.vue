@@ -1,5 +1,10 @@
 <template>
   <div id="journal-wrapper" style="background-color: transparent;">
+    <div v-if="errorMessage" class="error-message">
+      <span>Ocorreu um erro: {{ errorMessage }}</span>
+      <button @click="errorMessage = null" class="close-error-button">Fechar</button>
+    </div>
+
     <button @click="handleSair" class="sair-button">Sair</button>
     <div id="journal-container">
       <div class="main-layout">
@@ -33,22 +38,31 @@ const moodDataForSelectedDate = ref(null);
 const newMoodComponentKey = ref(0);
 const selectedDateForNewMood = ref(new Date());
 const isLoading = ref(true);
+const errorMessage = ref(null); // Novo estado para mensagens de erro
 
 async function handleMonthChange(year, month) {
   isLoading.value = true;
-  const data = await fetchMonth(year, month + 1);
-  monthOnCalendar.value = month;
-  monthData.value = data;
-  isLoading.value = false;
+  errorMessage.value = null; // Limpa erros anteriores
+  try {
+    const data = await fetchMonth(year, month + 1);
+    monthOnCalendar.value = month;
+    monthData.value = data;
+  } catch (error) {
+    console.error("Falha ao alterar o mês:", error);
+    errorMessage.value = error.message || "Não foi possível carregar os dados do mês.";
+    monthData.value = {}; // Garante que dados antigos não sejam exibidos
+  } finally {
+    isLoading.value = false; // Garante que o loading sempre termine
+  }
 }
 
 async function fetchMonth(year, month) {
   try {
     const url = `/api/moods/?month=${month}&year=${year}`;
     const res = await api.get(url);
-    const loadData = {};
 
     if (res.status === 200) {
+      const loadData = {};
       for (const entry of res.data) {
         const { entry_date: entryDate, id, mood } = entry;
         const day = parseInt(entryDate.split('-')[2], 10);
@@ -60,11 +74,13 @@ async function fetchMonth(year, month) {
         };
       }
       return loadData;
+    } else {
+      throw new Error(`Falha ao buscar dados. Status: ${res.status}`);
     }
   } catch (error) {
-    console.error(`Error fetching month data for ${year}-${month}:`, error);
+    console.error(`Erro na requisição para ${year}-${month}:`, error);
+    throw error;
   }
-  return {};
 }
 
 onBeforeMount(async () => {
@@ -75,43 +91,56 @@ onBeforeMount(async () => {
   }
 
   isLoading.value = true;
+  errorMessage.value = null;
 
-  await loadDefaultMoods();
+  try {
+    await loadDefaultMoods();
 
-  const today = new Date();
-  await handleMonthChange(today.getFullYear(), today.getMonth());
+    const today = new Date();
+    await handleMonthChange(today.getFullYear(), today.getMonth());
 
-  const day = today.getDate();
-  const todayMood = monthData.value[day];
-  if (todayMood) {
-    moodDataForSelectedDate.value = findMoodEntryForDate(today);
-  } else {
-    moodDataForSelectedDate.value = null;
+    const day = today.getDate();
+    const todayMood = monthData.value[day];
+    if (todayMood) {
+      moodDataForSelectedDate.value = findMoodEntryForDate(today);
+    } else {
+      moodDataForSelectedDate.value = null;
+    }
+  } catch (error) {
+    console.error("Erro na montagem inicial do componente:", error);
+    errorMessage.value = error.message || "Ocorreu um erro ao carregar os dados iniciais.";
+  } finally {
+    isLoading.value = false;
   }
-
-  isLoading.value = false;
 });
+
 
 watch(selectedDateForNewMood, (newDate) => {
   moodDataForSelectedDate.value = findMoodEntryForDate(newDate);
 });
 
 async function loadDefaultMoods() {
-  const moods = await api.get('/api/default-moods/');
-  definedMoods.value = [
-    { id: 'default', src: new URL('@/assets/images/NewMood.png', import.meta.url).href, alt: 'Novo Humor' },
-  ];
-  if (moods.status === 200) {
-    const moodData = moods.data;
-    for (const mood of moodData) {
-      definedMoods.value.push({
-        id: mood.id,
-        src: mood.image,
-        alt: mood.description
-      });
+  try {
+    const moods = await api.get('/api/default-moods/');
+    if (moods.status === 200) {
+      const moodData = moods.data;
+      const loadedMoods = [
+        { id: 'default', src: new URL('@/assets/images/NewMood.png', import.meta.url).href, alt: 'Novo Humor' }
+      ];
+      for (const mood of moodData) {
+        loadedMoods.push({
+          id: mood.id,
+          src: mood.image,
+          alt: mood.description
+        });
+      }
+      definedMoods.value = loadedMoods;
+    } else {
+      throw new Error(`Erro ao buscar humores padrão. Status: ${moods.status}`);
     }
-  } else {
-    console.error('Error fetching mood data:', moods.status);
+  } catch (error) {
+    console.error('Erro na requisição de humores padrão:', error);
+    throw new Error("Não foi possível carregar as opções de humor.");
   }
 }
 
@@ -163,7 +192,35 @@ function handleSair() {
   router.push("/");
 }
 </script>
+
 <style scoped>
+.error-message {
+  position: fixed;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #f8d7da;
+  color: #721c24;
+  padding: 15px 25px;
+  border: 1px solid #f5c6cb;
+  border-radius: 8px;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.close-error-button {
+  background: none;
+  border: 1px solid #721c24;
+  color: #721c24;
+  cursor: pointer;
+  padding: 5px 10px;
+  border-radius: 5px;
+  font-weight: bold;
+}
+
 #journal-wrapper {
   min-height: 100vh;
   padding-top: 80px;
