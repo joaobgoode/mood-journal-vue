@@ -145,6 +145,7 @@ async function submitMood() {
       description: moodDescription.value
     });
   }
+  dayHasMood.value = props.dayHasMoodFunction(props.selectedDateProp)
 }
 
 async function publicar(moodId, date, description) {
